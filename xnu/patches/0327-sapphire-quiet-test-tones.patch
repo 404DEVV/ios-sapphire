@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: x <x@x>
+Date: Sat, 14 Nov 2026 12:00:00 +0000
+Subject: [PATCH] sapphire-0327: the test tones are quiet
+
+0194 made the ADSP beep tone near full scale (-1 dBFS) because the
+bring-up had nothing to compare it to, and the buffers it rings are also
+what kern.sweet_audio op 1 replays. iOS's volume never reaches it:
+stream_volume() only moves the RX macro gains when iOS's own stream
+starts, so a beep plays at 0 dB whatever the phone's volume says. The
+tone is -31 dBFS now: still easy to find by ear on the headphones, no
+longer alarming. (userland/audio/tone_test.c drops its 440 Hz tone to
+-38 dBFS to match; that one does go through the volume.)
+diff --git a/iokit/Kernel/arm/TopazModem.cpp b/iokit/Kernel/arm/TopazModem.cpp
+index 05e5e57..70217d4 100644
+--- a/iokit/Kernel/arm/TopazModem.cpp
++++ b/iokit/Kernel/arm/TopazModem.cpp
+@@ -12388,10 +12388,10 @@ audio_test(void)
+ 	IOSleep(300);
+ 	/* kept for the rest of the session: the ADSP may hold on to the mapping */
+ 	for (unsigned i = 0; i < A_NBUF * A_PERIOD; i++) {
+-		/* 1 kHz at 48 kHz: 48 samples a period; a triangle near full scale (the buffers alternate tone / silence below) */
++		/* 1 kHz at 48 kHz: 48 samples a period; a quiet triangle (the buffers alternate tone / silence below) */
+ 		int ph = (int)(i % 48);
+ 		int tri = ph < 24 ? ph * 2 - 24 : 72 - ph * 2;   /* -24..24 */
+-		buf[i] = (int16_t)(tri * 1200);
++		buf[i] = (int16_t)(tri * 40);       /* 0327: -31 dBFS: loud at 0 dB RX gain, and iOS's volume does not reach it */
+ 	}
+ 	bzero(buf + 4 * A_PERIOD, 4 * A_PERIOD * sizeof(int16_t));   /* buffers 4-7 silent: beeps */
+ 	mb();

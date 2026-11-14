@@ -13,7 +13,7 @@ fill(void *ud, AudioQueueRef q, AudioQueueBufferRef b)
 	int16_t *s = (int16_t *)b->mAudioData;
 	UInt32 n = b->mAudioDataBytesCapacity / 4;
 	for (UInt32 i = 0; i < n; i++) {
-		int16_t v = (int16_t)(sin(phase) * 8000);
+		int16_t v = (int16_t)(sin(phase) * 400);        /* -38 dBFS: quiet, where 8000 (-12 dBFS) was alarming */
 		phase += 2 * M_PI * 440 / 48000;
 		s[2 * i] = s[2 * i + 1] = v;
 	}

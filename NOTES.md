@@ -1,5 +1,25 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## SAPPHIRE 2026-11-14: the test tones are quiet (kernel 0327)
+
+- A loud tone out of the phone while probing the codec over ssh turned out to be the one path that does
+  not answer to volume: `audio_beep()` (0196) writes the graph's buffers itself and never calls
+  `stream_volume()`, which only moves the RX macro gains when an iOS stream starts. It played 0194's
+  near-full-scale 1 kHz triangle (-1 dBFS) at whatever gain codec init left (0 dB).
+- 0327 scales that table to -31 dBFS (`tri * 40`); it is the same buffers the boot test (audio=3) and
+  `kern.sweet_audio` op 1 ring, so all three are quiet now. `userland/audio/tone_test.c` goes from
+  -12 dBFS to -38 dBFS (its 440 Hz tone does go through iOS's volume, i.e. through the HAL's ioctl).
+- Observation, not a guess: `kern.sweet_audio` op 2/3 register access (target 1 = WCD937x) does read the
+  codec live over SoundWire. Reading the MBHC block (0x3014/0x3015/0x3120/0x3122/0x3125) while the
+  playback graph was running produced a loud noise from the phone; the phone was powered off by the
+  user and nothing was written (the read-only requests are op 3). Do not touch the MBHC block from user
+  space on a live graph.
+- Wired headphones, the plan (not started in code): the codec's HPH path already exists (0192/0195/0199,
+  `a_flags & 4`) but only at boot, and nothing detects the jack. Detection has to come from the WCD937x
+  MBHC (ENUM: `WCD937X_ANA_MBHC_MECH` 0x3014, `..._ELECT` 0x3015, `MBHC_NEW_CTL_1` 0x3120,
+  `MBHC_NEW_PLUG_DETECT_CTL` 0x3122, `MBHC_NEW_FSM_STATUS` 0x3125), driven from the kernel with the
+  codec quiesced, not poked over the sysctl.
+
 ## SAPPHIRE 2026-11-08: a boot screen instead of the log (shim splash, kernel 0299)
 
 - The shim (`shim/splash.c`) puts a picture on the panel (`shim/splash/splash.png`, converted at build
