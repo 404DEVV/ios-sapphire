@@ -1,5 +1,38 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## SAPPHIRE 2026-11-14: the boot screen shows the boot is alive (kernel 0328)
+
+- Why: 0309 animates the gem and wordmark, but on a boot that stalls the pulse reads as a still picture,
+  and this phone's last boot looked hung. The still frame now has a status plate under the wordmark with
+  a rail, and the kernel writes live numbers on it: `BOOT 12.4s` (kernel up time), `FRAME 1234`, and a
+  light sweeping the rail every 2.2 s, plus the lines `IF THIS COUNTS UP THE KERNEL IS NOT HUNG` and
+  `iOS takes this screen when it draws its first frame`. When iOS draws its first frame the thread stops
+  and the last frame stays up, as before.
+- The plate, corner marks and the rail's dark trough are art in `shim/splash/make_splash.py` (the old
+  `#iOS4Sapphire` / thanks / made-with lines moved down to make room); 0328 restores that box from
+  `spl2_base` each frame and draws on it. The geometry (`PANEL_X/Y/W/H`, text x, rail y/width/segment) is
+  the same set of numbers in make_splash.py, splash_anim.py and the patch; the SPL2 header did not change.
+- `make_splash.py` no longer needs a Windows box: it tries Segoe (`/mnt/c/Windows/Fonts/`), then this
+  host's Liberation/Noto/DejaVu, then Pillow's own scalable font. Nothing else in the generator changed.
+- Checked here, not on the phone: the patch applies to an excerpt of the post-0309 file (both hunks,
+  with offset) and a host build of the same function (real `spl2_add`, `iso_font` filled from
+  `shim/font.h`) drew the identical frame to `splash_anim.py`'s preview at t=12345 ms / frame 308 - zero
+  differing pixels. splash_anim.py gained `status()` so its GIF still matches the phone.
+- 0328 built: `xnu-4k` run 43610539872, 326 patches applied, 0328 among them (the three vendor patches
+  still skip), `kernel.development.sweet` SHA256
+  `f9f0ae93bb7aeed35b8b1e1d36ee21d799ef2b2aea3423880d40cafaa4c66ad6` (18,140,440 bytes). Both new lines
+  are in the binary, and the boot image carries them.
+- Boot image, this time with the animated splash (the 0327 image was built `SPLASH=old`, a still 1080x2400
+  picture): payload SWEETXNU v1 at 0xccc000 of the image, 10 segments, ADT 92,060 bytes, splash blob
+  13,211,254 bytes SHA256 `c5e6b215553dff4992b51e488a413fc16f41fe1b34182c208dbe01927a6184a6`. Image
+  `/tmp/sapphire-4k-0328.img` (also copied to `~/Downloads/sapphire-4k-0328.img`), 31,047,779 bytes,
+  SHA256 `286079b3b95c5f53b994e3b4f107b98a61a3ea05ce5addea6c3d055df73bb4e5`, boot-args as for 0327 with
+  `--amp` (cpus=8).
+- Not booted yet: the phone does not answer here (ping/ssh to 192.168.1.125 fail, no adb or fastboot
+  device, no `1209:0001` USB device), so nobody has seen the panel on the LCD. Next: `fastboot boot` it
+  and watch the clock and frame count for a minute; a frozen clock with the bar still sweeping would mean
+  the thread is alive but the boot is stuck elsewhere. Then the headphones.
+
 ## SAPPHIRE 2026-11-14: the test tones are quiet (kernel 0327)
 
 - A loud tone out of the phone while probing the codec over ssh turned out to be the one path that does
