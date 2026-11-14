@@ -19,9 +19,18 @@
   MBHC (registers `WCD937X_ANA_MBHC_MECH` 0x3014, `..._ELECT` 0x3015, `MBHC_NEW_CTL_1` 0x3120,
   `MBHC_NEW_PLUG_DETECT_CTL` 0x3122, `MBHC_NEW_FSM_STATUS` 0x3125), driven from the kernel with the
   codec quiesced, not poked over the sysctl.
-- GitHub Actions: both `xnu-4k.yml` and `xnu.yml` were cancelled within seconds with "The configuration
-  'macos-14-arm64-us-default' is not supported". That was workflows being disabled in the fork's
-  settings, not a runner problem (turned on again); build 0327 from Actions to confirm.
+- GitHub Actions works again, and the two cancel causes were separate. Workflows were disabled in the
+  fork (turned on again), and after that jobs still died in 0-2 s with "The configuration
+  'macos-14-arm64-us-default' is not supported": a `probe-runner.yml` matrix showed `macos-14` refused
+  while `macos-13/15/26` start on this account, so `xnu-4k.yml` now runs on `macos-15` (Xcode 16.0
+  present there). `xnu.yml` still says `macos-14` and will keep cancelling until it is changed too.
+- 0327 built: `xnu-4k` run 43596770437, `kernel.development.sweet` SHA256
+  `e359ae63bb614d87045945fbf3293a4958e3bf4bd535940a62e65099ce328db1` (18,140,440 bytes), artifact
+  `xnu-kernel-4k`. The log shows 325 patches applied and 0327 among them (only the three vendor patches
+  `iobuffermemd_monterey`, `skywalk_sonoma`, `syntax_checker_sonoma` skip). Not booted yet, so the
+  quieter tone is not yet heard; the Collect step also had to be fixed (a
+  `kernel.development.sweet.link` directory made `shasum` fail after a good build, so no artifact was
+  uploaded on the first attempt).
 
 ## SAPPHIRE 2026-11-08: a boot screen instead of the log (shim splash, kernel 0299)
 
