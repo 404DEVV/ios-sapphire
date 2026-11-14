@@ -52,7 +52,7 @@ You need a Redmi Note 13 4G (`sapphire`/`sapphiren`) with an **unlocked bootload
 XNU only builds with Apple's toolchain. Two ways:
 
 - **Codemagic** (`codemagic.yaml`, free personal tier: 500 macOS minutes a month, a build takes a few minutes): add this repository as an application, start the `xnu` workflow on `sapphire`, download `xnu-kernel.zip`. It uses Xcode 16; patch 0141 makes the kernel build with it.
-- **GitHub Actions** (`.github/workflows/xnu.yml`, macos-14 / Xcode 15):
+- **GitHub Actions** (`.github/workflows/xnu.yml`, macos-15 / Xcode 16.0 with patch 0128; `xnu-4k.yml` for the 4 KiB-page kernel):
 
   ```sh
   gh workflow run xnu.yml -R YOU/ios-sapphire --ref sapphire

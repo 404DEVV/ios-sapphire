@@ -41,10 +41,12 @@ Updated 2026-10-26 (kernel 0234; details in `NOTES.md`, entry "SAPPHIRE 2026-10-
 - **USB to WSL** needs usbipd-win on the PC: `usbipd bind --force --busid <id>` once, then
   `usbipd attach --wsl --busid <id>` after every boot. In WSL the interface shows up as `enx...`
   and needs `ip addr add 192.168.7.1/24` each time.
-- **Kernels** build on Codemagic (`codemagic.yaml`, free macOS minutes); GitHub Actions is
-  locked on this account for billing. The user starts a build and pastes its SSH-access line;
-  the kernel is at `~/clone/dxb/fakeroot/System/Library/Kernels/` and can be fetched over that
-  SSH before the build's long cleanup, which the user then cancels to save minutes.
+- **Kernels** build on Codemagic (`codemagic.yaml`) or on GitHub Actions (`.github/workflows/`,
+  `macos-15`; `macos-14` is refused on this account) with `gh workflow run xnu-4k.yml -R
+  404DEVV/ios-sapphire --ref sapphire` and `gh run download RUN_ID ... -n xnu-kernel-4k`. On
+  Codemagic the user starts a build and pastes its SSH-access line; the kernel is at
+  `~/clone/dxb/fakeroot/System/Library/Kernels/` and can be fetched over that SSH before the
+  build's long cleanup, which the user then cancels to save minutes.
 
 ## Working on the phone without copying 16 GB
 

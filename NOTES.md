@@ -23,14 +23,18 @@
   fork (turned on again), and after that jobs still died in 0-2 s with "The configuration
   'macos-14-arm64-us-default' is not supported": a `probe-runner.yml` matrix showed `macos-14` refused
   while `macos-13/15/26` start on this account, so `xnu-4k.yml` now runs on `macos-15` (Xcode 16.0
-  present there). `xnu.yml` still says `macos-14` and will keep cancelling until it is changed too.
+  present there), and `xnu.yml` got the same treatment (it also had a `bash`/`gum` brew dependency and
+  a ccache wrapper that cached assembly). Both workflows now build on `macos-15` with Xcode 16.0.
 - 0327 built: `xnu-4k` run 43596770437, `kernel.development.sweet` SHA256
   `e359ae63bb614d87045945fbf3293a4958e3bf4bd535940a62e65099ce328db1` (18,140,440 bytes), artifact
   `xnu-kernel-4k`. The log shows 325 patches applied and 0327 among them (only the three vendor patches
   `iobuffermemd_monterey`, `skywalk_sonoma`, `syntax_checker_sonoma` skip). Not booted yet, so the
   quieter tone is not yet heard; the Collect step also had to be fixed (a
   `kernel.development.sweet.link` directory made `shasum` fail after a good build, so no artifact was
-  uploaded on the first attempt).
+  uploaded on the first attempt). The 16 KiB-page kernel builds too: `xnu` run 43599455982,
+  `kernel.development.sweet` SHA256 `87e0ca7efb9475bb1a023b1644a294f0f4545b66f3ed4454cfa898d8c08af431`
+  (18,553,472 bytes), artifact `xnu-kernel`; the same 325 patches apply and the skipped ones are the
+  three vendor patches plus dxb's own `TrustCache.patch` (`already exists in working directory`).
 
 ## SAPPHIRE 2026-11-08: a boot screen instead of the log (shim splash, kernel 0299)
 

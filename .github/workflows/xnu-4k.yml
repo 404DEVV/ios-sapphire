@@ -1,7 +1,8 @@
 # The kernel the phone runs (4 KiB pages, all eight cores): the same steps as codemagic.yaml's
-# xnu-4k workflow, on GitHub's macOS runners (free for a public repository), for when the Codemagic
-# account has no build minutes left. Start it with `gh workflow run xnu-4k -R <fork> --ref sapphire`;
-# the kernel is the run's artifact xnu-kernel-4k (kernel.development.sweet, SHA256SUMS).
+# xnu-4k workflow, on GitHub's macOS runners (free for a public repository). Start it with
+# `gh workflow run xnu-4k.yml -R <fork> --ref sapphire`; the kernel is the run's artifact
+# xnu-kernel-4k (kernel.development.sweet, SHA256SUMS). macos-14 must not be used here: jobs on it
+# are cancelled on this account with "macos-14-arm64-us-default is not supported".
 name: xnu-4k
 
 on:
