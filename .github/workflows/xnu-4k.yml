@@ -28,7 +28,7 @@ env:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15          # macos-14 is refused on this account ("macos-14-arm64-us-default is not supported")
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
