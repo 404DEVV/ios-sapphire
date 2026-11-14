@@ -16,9 +16,13 @@
   space on a live graph.
 - Wired headphones, the plan (not started in code): the codec's HPH path already exists (0192/0195/0199,
   `a_flags & 4`) but only at boot, and nothing detects the jack. Detection has to come from the WCD937x
-  MBHC (ENUM: `WCD937X_ANA_MBHC_MECH` 0x3014, `..._ELECT` 0x3015, `MBHC_NEW_CTL_1` 0x3120,
+  MBHC (registers `WCD937X_ANA_MBHC_MECH` 0x3014, `..._ELECT` 0x3015, `MBHC_NEW_CTL_1` 0x3120,
   `MBHC_NEW_PLUG_DETECT_CTL` 0x3122, `MBHC_NEW_FSM_STATUS` 0x3125), driven from the kernel with the
   codec quiesced, not poked over the sysctl.
+- GitHub Actions cannot build here: both `xnu-4k.yml` and `xnu.yml` are cancelled within seconds with
+  "The configuration 'macos-14-arm64-us-default' is not supported" (annotations on the run), i.e. the
+  account has no macOS runner, not a workflow problem. 0327 was not built; the WSL `kernel.sh` is the
+  way until that is sorted.
 
 ## SAPPHIRE 2026-11-08: a boot screen instead of the log (shim splash, kernel 0299)
 
