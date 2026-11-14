@@ -24,10 +24,19 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W, H = 1080, 2400
 SS = 2                                   # supersampling for shapes
-FONTS = "/mnt/c/Windows/Fonts/"
+# Segoe UI from a Windows box, then whatever this host has; last, Pillow's own font
+FONT_DIRS = ("/mnt/c/Windows/Fonts/", "/usr/share/fonts/liberation/", "/usr/share/fonts/noto/",
+             "/usr/share/fonts/truetype/liberation/", "/usr/share/fonts/truetype/noto/",
+             "/usr/share/fonts/truetype/dejavu/", "/System/Library/Fonts/Supplemental/", "/System/Library/Fonts/")
 GEM_C = (540, 980)                       # the gem's centre
 GEM_R = 250                              # its girdle radius
 RING_R = 372
+
+# the status panel: the plate xnu's sweet_splash2_status() (patch 0328) restores and draws on every frame,
+# with how long the kernel has been up, its frame count and a sweeping bar. These numbers are the kernel's too.
+PANEL_X, PANEL_Y, PANEL_W, PANEL_H = 100, 1810, 880, 250
+PANEL_TX = PANEL_X + 44                  # the text's left edge (the kernel's SWEET_PANEL_TX)
+BAR_Y, BAR_W = PANEL_Y + 188, PANEL_W - 88   # the rail the kernel's light runs along, 8 px tall from BAR_Y
 
 out = sys.argv[1]
 preview = "--preview" in sys.argv
@@ -36,13 +45,17 @@ rng = np.random.default_rng(1309)
 random.seed(1309)
 
 
-def font(name, size):
-    for n in name:
-        try:
-            return ImageFont.truetype(FONTS + n, size)
-        except OSError:
-            pass
-    return ImageFont.load_default()
+def font(names, size):
+    for n in list(names) + ["LiberationSans-Bold.ttf", "NotoSans-Bold.ttf", "DejaVuSans-Bold.ttf"]:
+        for d in FONT_DIRS:
+            try:
+                return ImageFont.truetype(d + n, size)
+            except OSError:
+                pass
+    try:
+        return ImageFont.load_default(size=size)    # Pillow's scalable default: no system font at all
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def smooth_noise(h, w, scale, octaves=5):
@@ -262,14 +275,57 @@ ImageDraw.Draw(line).rectangle((0, 1, 519, 2), fill=255)
 la = np.asarray(line, np.float32) / 255.0 * np.clip(1 - np.abs(np.linspace(-1, 1, 520)) ** 2, 0, 1)
 put(Image.fromarray((la * 255).astype(np.uint8)), WORD_Y + 205, (90, 160, 255))
 
-put(text_mask("#iOS4Sapphire", font(["seguibl.ttf", "segoeuib.ttf"], 64), spacing=3), 1930,
+# ---------------------------------------------------------------- the status panel's plate
+# Only the plate is drawn here: xnu (0328) restores these pixels every frame and puts the live text and
+# the sweeping bar on them, so the phone shows the boot's progress instead of a still picture.
+def plate_mask(w, h, radius, outline=0):
+    m = Image.new("L", (w * SS, h * SS), 0)
+    d = ImageDraw.Draw(m)
+    if outline:
+        o = outline * SS // 2
+        d.rounded_rectangle((o, o, w * SS - 1 - o, h * SS - 1 - o), radius=radius * SS, outline=255,
+                            width=outline * SS)
+    else:
+        d.rounded_rectangle((0, 0, w * SS - 1, h * SS - 1), radius=radius * SS, fill=255)
+    return np.asarray(m.resize((w, h), Image.LANCZOS), np.float32) / 255.0
+
+
+def blend(x0, y0, a, color):
+    global bg
+    h, w = a.shape
+    sl = bg[y0:y0 + h, x0:x0 + w]
+    bg[y0:y0 + h, x0:x0 + w] = sl * (1 - a[..., None]) + np.array(color, np.float32) * a[..., None]
+
+
+blend(PANEL_X, PANEL_Y, plate_mask(PANEL_W, PANEL_H, 30) * 0.78, (4, 9, 20))            # the glass
+blend(PANEL_X, PANEL_Y, plate_mask(PANEL_W, PANEL_H, 30, outline=2) * 0.42, (70, 120, 190))
+
+# corner marks, like a HUD
+marks = Image.new("L", (PANEL_W * SS, PANEL_H * SS), 0)
+md = ImageDraw.Draw(marks)
+for cx, cy, sx, sy in ((18, 18, 1, 1), (PANEL_W - 18, 18, -1, 1), (18, PANEL_H - 18, 1, -1),
+                       (PANEL_W - 18, PANEL_H - 18, -1, -1)):
+    md.line([((cx + sx * 26) * SS, cy * SS), (cx * SS, cy * SS), (cx * SS, (cy + sy * 26) * SS)],
+            fill=255, width=2 * SS, joint="curve")
+blend(PANEL_X, PANEL_Y, np.asarray(marks.resize((PANEL_W, PANEL_H), Image.LANCZOS), np.float32) / 255.0 * 0.5,
+      (95, 160, 225))
+
+# a hairline between the words and the rail
+blend(PANEL_TX, PANEL_Y + 160, np.clip(1 - np.abs(np.linspace(-1, 1, BAR_W)) ** 1.5, 0, 1)[None, :] * 0.22,
+      (80, 140, 200))
+
+# the rail: a dark trough the kernel's light runs in (BAR_Y .. BAR_Y + 8, its 8 rows inside this 18)
+blend(PANEL_TX, BAR_Y - 5, plate_mask(BAR_W, 18, 9) * 0.85, (9, 15, 28))
+blend(PANEL_TX, BAR_Y - 5, plate_mask(BAR_W, 18, 9, outline=1) * 0.35, (45, 80, 125))
+
+heart = "♥"
+put(text_mask("#iOS4Sapphire", font(["seguibl.ttf", "segoeuib.ttf"], 60), spacing=3), 2128,
     (120, 200, 255), glow=(16, (10, 60, 160)))
 put(text_mask("Thanks for using this port — please consider donating",
-              font(["seguisb.ttf", "segoeuib.ttf"], 34)), 2020, (175, 190, 215))
-heart = "♥"
-put(text_mask("Made with " + heart + " by Angelpro09_Devv", font(["seguisb.ttf", "segoeuib.ttf"], 36)), 2078,
+              font(["seguisb.ttf", "segoeuib.ttf"], 28)), 2190, (175, 190, 215))
+put(text_mask("Made with " + heart + " by Angelpro09_Devv", font(["seguisb.ttf", "segoeuib.ttf"], 28)), 2230,
     (205, 215, 235))
-put(text_mask("HOLD  VOL+  FOR RECOVERY", font(["seguisb.ttf", "segoeuib.ttf"], 28), spacing=4), 2290, (95, 110, 140))
+put(text_mask("HOLD  VOL+  FOR RECOVERY", font(["seguisb.ttf", "segoeuib.ttf"], 26), spacing=4), 2295, (95, 110, 140))
 
 base = np.clip(bg, 0, 255).astype(np.uint8)
 

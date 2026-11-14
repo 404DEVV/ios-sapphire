@@ -8,14 +8,31 @@ Per frame at T milliseconds since the boot screen came up:
   - the gem pulses: in the gem box, base + glow * P / 256 per channel (saturating), P = 150 + SIN(T / 2400)
   - a comet runs round the ring every 2.8 s: TAIL points behind the head, brightness falling linearly
   - every 3 s a light sweeps the wordmark diagonally (1.4 s), only where its mask is set
+  - the status panel (patch 0328, sweet_splash2_status): how long the kernel has been up, the frame count,
+    and a bar sweeping its rail every 2.2 s -- so a slow boot visibly moves
 """
-import math, struct, sys
+import math, os, re, struct, sys
 import numpy as np
 from PIL import Image
 
 SIN = [int(round(127 * math.sin(2 * math.pi * i / 256))) for i in range(256)]
 TAIL = 110
 PULSE_MS, COMET_MS, SWEEP_MS, SWEEP_RUN, GLINT_MS = 2400, 2800, 3000, 1400, 2000
+
+# the status panel: the same numbers as make_splash.py and xnu's patch 0328
+PANEL_Y = 1810
+PANEL_TX, BAR_Y, BAR_W, SEG, LAP_MS = 144, 1998, 792, 180, 2200
+
+
+def _font():
+    """shim/font.h, the console's 8x16 glyphs (bit 7 is the left column). The phone draws these with xnu's
+    iso_font, which is the same VGA face for ASCII."""
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "font.h")).read()
+    rows = re.findall(r"\{([^{}]*)\}", src)
+    return np.array([[int(v, 16) for v in r.split(",")] for r in rows], np.uint8)
+
+
+FONT = _font()
 
 
 def load(path):
@@ -41,7 +58,39 @@ def rgb(a):
     return np.stack([(a >> 16) & 255, (a >> 8) & 255, a & 255], -1).astype(np.int32)
 
 
-def frame(s, t):
+def text(f, x, y, s, scale, color):
+    """one line at x, y (top-left) with squash 8x16 glyphs, what sweet_splash2_text() does"""
+    color = np.array(color, np.int32)
+    for ch in s:
+        if 0x20 < ord(ch) < 0x7f:
+            g = FONT[ord(ch) - 0x20]
+            for gy in range(16):
+                for gx in range(8):
+                    if (g[gy] >> (7 - gx)) & 1:
+                        f[y + gy * scale:y + (gy + 1) * scale, x + gx * scale:x + (gx + 1) * scale] = color
+        x += 8 * scale
+    return x
+
+
+def status(f, t, frames):
+    """the boot's live numbers on the plate (sweet_splash2_status)"""
+    x = text(f, PANEL_TX, PANEL_Y + 26, "BOOT", 3, (0x5f, 0x86, 0xb8))
+    text(f, x + 24, PANEL_Y + 26, "%d.%ds" % (t // 1000, (t // 100) % 10), 3, (255, 255, 255))
+    line = "FRAME %d" % frames
+    text(f, PANEL_TX + BAR_W - len(line) * 8, PANEL_Y + 50, line, 1, (0x7f, 0xa2, 0xcc))
+    text(f, PANEL_TX, PANEL_Y + 92, "IF THIS COUNTS UP THE KERNEL IS NOT HUNG", 1, (0x89, 0xa9, 0xcf))
+    text(f, PANEL_TX, PANEL_Y + 118, "iOS takes this screen when it draws its first frame", 1, (0x5d, 0x77, 0x96))
+    i = np.arange(SEG)
+    span = BAR_W - SEG
+    bx = PANEL_TX + (t % LAP_MS) * span // LAP_MS
+    for r in range(8):
+        a = np.minimum(i, SEG - 1 - i) * 255 // (SEG // 2)
+        a = a * (255 - (3 - r if r < 4 else r - 4) * 56) >> 8
+        sl = f[BAR_Y + r, bx:bx + SEG]
+        sl[:] = np.minimum(255, sl + np.stack([30 * a >> 8, 140 * a >> 8, 255 * a >> 8], -1))
+
+
+def frame(s, t, frames=0):
     f = rgb(s["base"]).copy()
     gx, gy, gw, gh = s["gem"]
     p = 150 + SIN[(t * 256 // PULSE_MS) & 255] * 105 // 127
@@ -71,6 +120,7 @@ def frame(s, t):
         x, y = s["glints"][j]
         sl = f[y - hs:y + hs + 1, x - hs:x + hs + 1]
         sl[:] = np.minimum(255, sl + ((sp * a) >> 8))
+    status(f, t, frames)
     # wordmark sweep
     wx, wy, ww, wh = s["word"]
     ts = t % SWEEP_MS
@@ -90,7 +140,7 @@ def preview(binpath, gifpath, seconds=6, fps=20, scale=0.5):
     s = load(binpath)
     frames = []
     for i in range(seconds * fps):
-        im = Image.fromarray(frame(s, i * 1000 // fps))
+        im = Image.fromarray(frame(s, i * 1000 // fps, i))
         frames.append(im.resize((int(s["w"] * scale), int(s["h"] * scale)), Image.LANCZOS))
     frames[0].save(gifpath, save_all=True, append_images=frames[1:], duration=1000 // fps, loop=0, optimize=False)
     print(gifpath, len(frames), "frames")

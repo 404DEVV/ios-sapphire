@@ -1,0 +1,104 @@
+From: x <x@x>
+Subject: [PATCH] sapphire-0328: the boot screen's status panel -- up time, frame count and a sweeping bar, so a
+ slow boot visibly moves instead of looking hung
+
+0309 animates the gem and the wordmark, but on a boot that stalls for a minute the screen still looked frozen.
+This puts the boot's live numbers on the still frame's plate (make_splash.py draws the plate and its rail):
+each frame restores that box from the still frame and draws BOOT <seconds>, the frame count, and a light
+sweeping the rail every 2.2 s. When iOS draws its first frame the thread stops and the last frame stays up.
+---
+--- a/osfmk/console/video_console.c
++++ b/osfmk/console/video_console.c
+@@ -3698,7 +3698,74 @@
+ 	}
+ }
+ 
++/*
++ * sapphire 0328: the boot screen's status panel -- the plate is part of the still frame (make_splash.py,
++ * the PANEL_* here are its numbers), and sweet_splash2_status() restores it from spl2_base each frame and
++ * draws on it: the kernel's up time, its frame count and a light sweeping the rail, so a slow boot visibly
++ * moves instead of looking hung.
++ */
++#define SWEET_PANEL_X      100
++#define SWEET_PANEL_Y      1810
++#define SWEET_PANEL_W      880
++#define SWEET_PANEL_H      250
++#define SWEET_PANEL_TX     (SWEET_PANEL_X + 44)
++#define SWEET_PANEL_BAR_Y  (SWEET_PANEL_Y + 188)
++#define SWEET_PANEL_BAR_W  (SWEET_PANEL_W - 88)
++#define SWEET_PANEL_SEG    180
++#define SWEET_PANEL_LAP_MS 2200
++
++/* one line of text at x, y (top-left), scale 1 = 8x16; returns the x after it */
++static int
++sweet_splash2_text(uint32_t *f, unsigned int w, unsigned int h, int x, int y, const char *s, int scale, uint32_t fg)
++{
++	for (; *s; s++, x += 8 * scale) {
++		unsigned char ch = (unsigned char)*s;
++		if (ch > ' ' && ch < 0x7f) {
++			sweet_splash_glyph(f, w, h, x, y, iso_font + ch * 16, scale, fg);
++		}
++	}
++	return x;
++}
++
++/* the panel at T ms, FRAMES frames in: the plate from the still frame, then what moves on it */
++static void
++sweet_splash2_status(uint32_t *f, uint64_t t, uint64_t frames)
++{
++	unsigned int w = vinfo.v_width, h = vinfo.v_height, r;
++	const int y = SWEET_PANEL_Y;
++	const int span = SWEET_PANEL_BAR_W - SWEET_PANEL_SEG;
++	int x, bx;
++	char line[64];
++
++	for (r = 0; r < SWEET_PANEL_H && y + (int)r < (int)h; r++) {
++		memcpy(f + (size_t)(y + (int)r) * w + SWEET_PANEL_X,
++		    spl2_base + (size_t)(y + (int)r) * w + SWEET_PANEL_X, SWEET_PANEL_W * 4);
++	}
++	/* BOOT 12.4s, and the frame count: the kernel is up, this is how long for */
++	x = sweet_splash2_text(f, w, h, SWEET_PANEL_TX, y + 26, "BOOT", 3, 0xff5f86b8u);
++	snprintf(line, sizeof(line), "%llu.%us", (unsigned long long)(t / 1000), (unsigned)((t / 100) % 10));
++	sweet_splash2_text(f, w, h, x + 24, y + 26, line, 3, 0xffffffffu);
++	snprintf(line, sizeof(line), "FRAME %llu", (unsigned long long)frames);
++	sweet_splash2_text(f, w, h, SWEET_PANEL_TX + SWEET_PANEL_BAR_W - (int)strlen(line) * 8, y + 50, line, 1,
++	    0xff7fa2ccu);
++	sweet_splash2_text(f, w, h, SWEET_PANEL_TX, y + 92, "IF THIS COUNTS UP THE KERNEL IS NOT HUNG", 1, 0xff89a9cfu);
++	sweet_splash2_text(f, w, h, SWEET_PANEL_TX, y + 118, "iOS takes this screen when it draws its first frame", 1,
++	    0xff5d7796u);
++	/* the rail: a light SWEET_PANEL_SEG px wide sweeping it once a lap */
++	bx = SWEET_PANEL_TX + (int)((t % SWEET_PANEL_LAP_MS) * (uint64_t)span / SWEET_PANEL_LAP_MS);
++	for (r = 0; r < 8; r++) {
++		uint32_t *o = f + (size_t)(SWEET_PANEL_BAR_Y + (int)r) * w + bx;
++		unsigned int fade = 255 - (r < 4 ? 3 - (int)r : (int)r - 4) * 56;
++		for (int i = 0; i < SWEET_PANEL_SEG; i++) {
++			unsigned int a = (unsigned int)(i < SWEET_PANEL_SEG / 2 ? i : SWEET_PANEL_SEG - 1 - i) * 255 /
++			    (SWEET_PANEL_SEG / 2);
++			a = (a * fade) >> 8;
++			o[i] = spl2_add(o[i], (30 * a) >> 8, (140 * a) >> 8, (255 * a) >> 8);
++		}
++	}
++}
++
+ static void
+ sweet_splash_thread(void *arg __unused, wait_result_t wr __unused)
+ {
+ 	unsigned int w = vinfo.v_width, h = vinfo.v_height;
+@@ -3729,14 +3815,17 @@
+ 		/* 0309: animated, ~25 frames a second, until iOS's first frame (or 5 minutes) */
+ 		const struct sweet_spl2 *s2 = sweet_spl2;
+ 		uint64_t t0 = mach_absolute_time(), ns = 0;
++		uint64_t frames = 0;
+ 		sweet_splash_show(f, 0, h);
+ 		while (sweet_splash_active && ns < 300ull * NSEC_PER_SEC) {
+ 			absolutetime_to_nanoseconds(mach_absolute_time() - t0, &ns);
+ 			sweet_splash2_frame(f, ns / NSEC_PER_MSEC);
++			sweet_splash2_status(f, ns / NSEC_PER_MSEC, frames++);
+ 			sweet_splash_show(f, s2->gy, s2->gy + s2->gh);
+ 			sweet_splash_show(f, s2->wy, s2->wy + s2->wh);
++			sweet_splash_show(f, SWEET_PANEL_Y, SWEET_PANEL_Y + SWEET_PANEL_H);
+ 			sweet_splash_sleep(40);
+ 		}
+ 		kfree_data(f, size);
+ 		return;
+ 	}
