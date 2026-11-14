@@ -35,6 +35,27 @@
   `kernel.development.sweet` SHA256 `87e0ca7efb9475bb1a023b1644a294f0f4545b66f3ed4454cfa898d8c08af431`
   (18,553,472 bytes), artifact `xnu-kernel`; the same 325 patches apply and the skipped ones are the
   three vendor patches plus dxb's own `TrustCache.patch` (`already exists in working directory`).
+- The 0327 boot image can now be built on an Arch host without a GNU aarch64 cross toolchain, and
+  without the IPSW: the missing `research/ipsw-x/d22ap.adt` was recovered from the 0.1.9 release image
+  (`sapphire-kernel.img`: boot v4, SWEETXNU payload at 0xfc c0b0, ADT 92,060 bytes, root
+  `D22AP|iPhone10,3|xiaomi,sapphire|...`). Regenerating the ADT from it reproduces every identity node
+  byte for byte (`/product` 63 props, `/baseband`, `cpus`, `arm-io`, `sweet-ufs`, `sweet-fbcon`); only
+  `/chosen/random-seed` and `/chosen/display-scale` differ, the latter because mkadt now writes 3
+  where 0.1.9 had 2 (`sapphire-repack.py --adt display-scale=2` was a 0239 workaround). The same image
+  also carries all five Qualcomm blobs (`gpu-sqe-firmware` 32,504 B, `gpu-zap-metadata` 6,860,
+  `gpu-zap-segment` 2,096, `ipa-fws-metadata` 7,020, `ipa-fws-image` 29,120), so `--gpu-fw`/`--ipa-fw`
+  need no vendor tree either; they were extracted to `/tmp/fw/{gpu,ipa}`.
+- Shim built with clang (`/tmp/cross/aarch64-linux-gnu-*` wrappers, not in git): `-fno-jump-tables`
+  (clang's switch table is 4 ABS64 relocations in `.rodata`, which `shim/build.sh` rejects),
+  `-fuse-ld=lld` (host GNU ld has no aarch64), `-fno-builtin`, and `ufs.c`'s `__builtin_strcmp`
+  (inlined by GCC, called by clang) supplied as one out-of-tree object. `mkbootimg` replaced by a
+  small v4 writer (`/tmp/bin/mkbootimg.py`) that reuses the release header. Image:
+  `/tmp/sapphire-4k-0327.img`, 20,471,906 bytes, SHA256
+  `38e5808fec501976ab7f76e3ba99ce7f2ec1d2f667ee9b26905203a9f9e0026a`; all 10 payload segments are
+  byte-identical to the CI kernel `e359ae63…`, ADT parses, cmdline carries `cpus=8` and the usual
+  args. Built with `SPLASH=old`: the animated SPL2 boot screen needs the Windows fonts under
+  `/mnt/c`, so this image shows the older still picture. Not booted (no phone attached to this
+  host).
 
 ## SAPPHIRE 2026-11-08: a boot screen instead of the log (shim splash, kernel 0299)
 
