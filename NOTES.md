@@ -19,10 +19,9 @@
   MBHC (registers `WCD937X_ANA_MBHC_MECH` 0x3014, `..._ELECT` 0x3015, `MBHC_NEW_CTL_1` 0x3120,
   `MBHC_NEW_PLUG_DETECT_CTL` 0x3122, `MBHC_NEW_FSM_STATUS` 0x3125), driven from the kernel with the
   codec quiesced, not poked over the sysctl.
-- GitHub Actions cannot build here: both `xnu-4k.yml` and `xnu.yml` are cancelled within seconds with
-  "The configuration 'macos-14-arm64-us-default' is not supported" (annotations on the run), i.e. the
-  account has no macOS runner, not a workflow problem. 0327 was not built; the WSL `kernel.sh` is the
-  way until that is sorted.
+- GitHub Actions: both `xnu-4k.yml` and `xnu.yml` were cancelled within seconds with "The configuration
+  'macos-14-arm64-us-default' is not supported". That was workflows being disabled in the fork's
+  settings, not a runner problem (turned on again); build 0327 from Actions to confirm.
 
 ## SAPPHIRE 2026-11-08: a boot screen instead of the log (shim splash, kernel 0299)
 
